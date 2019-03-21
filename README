@@ -1,0 +1,49 @@
+Tasket - A To-do & Have-done List
+
+Todo:
+-Use tasker for this todo list
+-Improve pretty-printing
+-Add support for filters
+-Add support for different file locations
+-Add support for different file permissions
+-Add support for more common lisp implementations
+-Add shell tab completion
+
+
+How to use:
+Get tasks.lisp up and running in SBCL.
+Use tasker.py to communicate with tasks.lisp. The API is documented below.
+???
+Profit
+
+
+Notes:
+The fifos that tasker and tasks use to communicate are world-readable and
+world-writable. This is useful if you want to have multiple users use the same
+task list. If any of the users are malicious, they can cause the scripts to
+become unresponsive. If any of the users are incompetent, they can irreparably
+damage the list.
+Any of the commands below can be shortened, if it's unambiguous which command
+you want.
+Be careful not to forget an argument.
+	`tasker.py modify-task --rowid 1 --due-date --project` will set the
+due date to "project".
+
+
+API:
+tasker.py list-tasks
+	Lists all tasks.
+tasker.py add-task --due-date [due-date] --project [project] --tags [tags]
+		   --plist [plist] --notes [notes] --completed [completed]
+	Adds a new task.
+tasker.py modify-task --rowid [rowid] --due-date [due-date] --project [project]
+		      --tags [tags] --plist [plist] --notes [notes]
+		      --completed [completed]
+	Updates task. Only rowid is required.
+tasker.py complete-task --rowid [rowid]
+	Marks the task identified by rowid as complete. Exactly the same as
+	`tasker.py modify-task --rowid rowid --complete 1`
+tasker.py quit
+	Close tasks.lisp.
+tasker.py exit
+	Synonym for quit.

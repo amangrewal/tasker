@@ -4,6 +4,7 @@
 (ql:quickload "unix-opts")
 (ql:quickload "split-sequence")
 (ql:quickload "cl-dbi")
+(ql:quickload "cl-ppcre")
 ;(ql:quickload "local-time")
 ;(ql:quickload "usocket")
 
@@ -84,7 +85,7 @@
        (cond ,@(loop for arg in args
                      for short in shortest-names
                                          ;;Allow the shortest unambigious initial substring to identify a command
-                     collect (list `(and (string-equal ,(car short) (car line) :start2 0 :end2 ,(cdr short))
+                     collect (list `(and (string-equal ,(car short) (car line) :end2 ,(cdr short))
                                          (starts-with ,arg (car line)))
                                    `(,(intern (string-upcase arg)) fifo
                                                                    ;;car is the "script" name
@@ -127,6 +128,12 @@
   (let ((get-all (cl-dbi:prepare *db* "SELECT rowid, * from tasks")))
     (write-to-fifo fifo (print-items (cl-dbi:fetch-all (cl-dbi:execute get-all))))))
 
+(defun interpret-args (args)
+  "Turns command-line options into lisp keywords, translating leading -- into :."
+  (let ((*read-eval* nil))
+    (loop for (key arg) on args by #'cddr
+          appending (list (read-from-string (cl-ppcre:regex-replace "^--" key ":")) arg))))
+
 (defun insert-item (db &key due-date project tags plist notes)
   "Inserts a new task into the database.
    Created-at and last-updated are set to now. Completed is set to 0."
@@ -141,9 +148,7 @@
 (defcommand add-task
   (if args
       (progn
-        (let ((*read-eval* nil))
-          (apply #'insert-item *db* (loop for (key arg) on args by #'cddr
-                                          appending (list (read-from-string key) arg))))
+        (apply #'insert-item *db* (interpret-args args))
         (write-to-fifo fifo "done" args))
       (write-to-fifo fifo "Empty task - Not Inserted.")))
 
@@ -174,9 +179,7 @@
     (error "Must supply rowid.")))
 
 (defcommand modify-task
-  (let ((*read-eval* nil))
-    (write-to-fifo fifo (apply #'modify-item *db* (loop for (key arg) on args by #'cddr
-                                                        appending (list (read-from-string key) arg))))))
+  (write-to-fifo fifo (apply #'modify-item *db* (interpret-args args))))
 
 (defun complete-task (fifo args)
   (modify-task fifo (append args '(:completed t))))
@@ -188,7 +191,7 @@
   ;;move the database file
   ;;open a new connection
   ;;insert all tasks
-  )
+  (error "Not implemented yet."))
 
 ;;;; With proper packaging, I can use quit and exit
 (defun quitl (fifo args)
