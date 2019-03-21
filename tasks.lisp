@@ -72,19 +72,32 @@
                           maximize (index-of-1st-different-character s str))
           collect (cons (subseq s 0 idx) idx))))
 
+(defun starts-with (str1 str2)
+  "Does str1 start with str2 (case-insensitive)?"
+  (string-equal str1 str2 :start1 0 :end1 (length str2)))
+
 (defmacro dispatch-on-unique-prefix (&rest args)
   (let ((shortest-names (get-shortest-unique-initial-substrings args)))
-    `(cond ,@(loop for arg in args
-                   for short in shortest-names
-                   collect (list (list 'string-equal (car short) 'line :start2 0 :end2 (cdr short))
-                                 `(,(intern (string-upcase arg)) fifo
-                                                                 ;;car is the "script" name
-                                                                 ;;we only care about the arguments
-                                                                 (cdr (split-sequence:split-sequence (code-char 0)
-                                                                                                     line
-                                                                                                     :remove-empty-subseqs t))))))))
+    `(let ((line (split-sequence:split-sequence (code-char 0)
+                                                line
+                                                :remove-empty-subseqs t)))
+       (cond ,@(loop for arg in args
+                     for short in shortest-names
+                                         ;;Allow the shortest unambigious initial substring to identify a command
+                     collect (list `(and (string-equal ,(car short) (car line) :start2 0 :end2 ,(cdr short))
+                                         (starts-with ,arg (car line)))
+                                   `(,(intern (string-upcase arg)) fifo
+                                                                   ;;car is the "script" name
+                                                                   ;;we only care about the arguments
+                                                                   (cdr line))))
+             (t (does-not-exist fifo line))))))
 
-(split-sequence:split-sequence (code-char 0) (concatenate 'string "test" (list (code-char 0)) "test2" (list (code-char 0)) "test3"))
+(defmacro defcommand (name &body body)
+  "Wrap command in a handler-case."
+  `(defun ,name (fifo args)
+     (handler-case (progn
+                     ,@body)
+       (condition (c) (write-to-fifo fifo "Something went wrong with ~a: ~%~a" args c)))))
 
 (defun print-items (rows &optional fields)
   "Pretty print the returned database rows.
@@ -107,7 +120,7 @@
    
    N.B. This blocks until something read from the fifo."
   (with-open-file (output fname :direction :output :if-does-not-exist :error)
-    (apply #'format output str args)))
+    (format output "~&~?~&" str args)))
 
 (defun list-tasks (fifo args)
   (declare (ignore args))
@@ -125,11 +138,14 @@
                       (or plist "")
                       (or notes ""))))
 
-(defun add-task (fifo args)
-  (let ((*read-eval* nil))
-    (apply #'insert-item *db* (loop for (key arg) on args by #'cddr
-                                    appending (list (read-from-string key) arg))))
-  (write-to-fifo fifo "~%~a~%done~%" args))
+(defcommand add-task
+  (if args
+      (progn
+        (let ((*read-eval* nil))
+          (apply #'insert-item *db* (loop for (key arg) on args by #'cddr
+                                          appending (list (read-from-string key) arg))))
+        (write-to-fifo fifo "~%~a~%done~%" args))
+      (write-to-fifo fifo "~%Empty task - Not Inserted.~%")))
 
 (defun modify-item (db rowid &key due-date project tags plist notes (completed nil completed-p))
   (let ((oldrow (cl-dbi:fetch (cl-dbi:execute (cl-dbi:prepare db "SELECT * from tasks where rowid = ?") rowid)))
@@ -179,6 +195,9 @@
   (declare (ignore fifo args))
   (throw 'quit nil))
 
+(defun does-not-exist (fifo line)
+  (write-to-fifo fifo "~%Unknown command ~A~%" line))
+
 (defun dispatch (fifo line)
   "Parses line to determine action. Writes any necesary output to fifo."
   (dispatch-on-unique-prefix
@@ -189,12 +208,6 @@
     ;"flush-tasks" 
     "quitl"
     "exitl"))
-
-(defun whitespace-p (c)
-  "Returns a generalized boolean."
-  ;;According to the spec, only #\Newline and #\Space need to be implemented.
-  ;;Put the common cases first.
-  (member c '(#\Space #\Tab #\Newline #\Page #\Linefeed #\Return #\Backspace #\Rubout)))
 
 (defun parse-args ())
 
