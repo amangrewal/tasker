@@ -93,11 +93,11 @@
              (t (does-not-exist fifo line))))))
 
 (defmacro defcommand (name &body body)
-  "Wrap command in a handler-case."
+  "Wraps command in a handler-case, and injects two arguments, fifo and args."
   `(defun ,name (fifo args)
      (handler-case (progn
                      ,@body)
-       (condition (c) (write-to-fifo fifo "Something went wrong with ~a: ~%~a" args c)))))
+       (condition (c) (write-to-fifo fifo "Something went wrong in ~a called with ~a: ~%~a" ',name args c)))))
 
 (defun print-items (rows &optional fields)
   "Pretty print the returned database rows.
@@ -144,41 +144,45 @@
         (let ((*read-eval* nil))
           (apply #'insert-item *db* (loop for (key arg) on args by #'cddr
                                           appending (list (read-from-string key) arg))))
-        (write-to-fifo fifo "~%~a~%done~%" args))
-      (write-to-fifo fifo "~%Empty task - Not Inserted.~%")))
+        (write-to-fifo fifo "done" args))
+      (write-to-fifo fifo "Empty task - Not Inserted.")))
 
-(defun modify-item (db rowid &key due-date project tags plist notes (completed nil completed-p))
-  (let ((oldrow (cl-dbi:fetch (cl-dbi:execute (cl-dbi:prepare db "SELECT * from tasks where rowid = ?") rowid)))
-        (statement (cl-dbi:prepare db "UPDATE tasks SET due-date = ?,
-                                                        project = ?,
-                                                        tags = ?,
-                                                        notes = ?,
-                                                        completed = ?,
-                                                        last-updated = datetime('now')
-                                                    WHERE rowid = ?")))
-    (when oldrow
-      (cl-dbi:execute statement (or due-date (getf oldrow :due-date))
-                                (or project (getf oldrow :project))
-                                (or tags (getf oldrow :tags))
-                                (or plist (getf oldrow :plist))
-                                (or notes (getf oldrow :notes))
-                                (if completed
-                                    1
-                                    (if completed-p ;I'll have to add support for uncompleting a task
-                                        0
-                                        (getf oldrow :completed)))))))
+(defun modify-item (db &key (rowid nil rowid-p) due-date project tags plist notes (completed nil completed-p))
+  (if rowid-p
+      (let ((oldrow (cl-dbi:fetch (cl-dbi:execute (cl-dbi:prepare db "SELECT * from tasks where rowid = ?") rowid)))
+            (statement (cl-dbi:prepare db "UPDATE tasks SET 'due-date' = ?,
+                                                            project = ?,
+                                                            tags = ?,
+                                                            plist = ?,
+                                                            notes = ?,
+                                                            completed = ?,
+                                                            'last-updated' = datetime('now')
+                                                        WHERE rowid = ?")))
+        (when oldrow
+          (cl-dbi:execute statement (or due-date (getf oldrow :due-date))
+                                    (or project (getf oldrow :project))
+                                    (or tags (getf oldrow :tags))
+                                    (or plist (getf oldrow :plist))
+                                    (or notes (getf oldrow :notes))
+                                    (if completed
+                                        1
+                                        (if completed-p ;I'll have to add support for uncompleting a task
+                                            0
+                                            (getf oldrow :completed)))
+                                    rowid))
+        "done")
+    (error "Must supply rowid.")))
 
-(defun modify-task (fifo args)
+(defcommand modify-task
   (let ((*read-eval* nil))
-    (apply #'modify-item *db* (loop for (key arg) on args by #'cddr
-                                    appending (list (read-from-string key) arg))))
-  (write-to-fifo fifo "~%done~%"))
+    (write-to-fifo fifo (apply #'modify-item *db* (loop for (key arg) on args by #'cddr
+                                                        appending (list (read-from-string key) arg))))))
 
 (defun complete-task (fifo args)
   (modify-task fifo (append args '(:completed t))))
 
 (defun flush-tasks (fifo args)
-  (declare (ignorable fifo args))
+  (declare (ignore fifo args))
   ;;get all incomplete tasks
   ;;close the database connection
   ;;move the database file
@@ -196,7 +200,7 @@
   (throw 'quit nil))
 
 (defun does-not-exist (fifo line)
-  (write-to-fifo fifo "~%Unknown command ~A~%" line))
+  (write-to-fifo fifo "Unknown command ~A" line))
 
 (defun dispatch (fifo line)
   "Parses line to determine action. Writes any necesary output to fifo."
@@ -238,10 +242,9 @@
                                              NOTES TEXT,
                                              COMPLETED INTEGER)"))
         (catch 'quit
-                 (loop for line = (restart-case (read-line input)
-                                    (retry () (read-line input)))
+                 (loop for line = (read-line input)
                        do (dispatch output line)))
-        (write-to-fifo output "~%Exiting~%"))
+        (write-to-fifo output "Exiting"))
       (delete-file output))))
 
 (startup)
