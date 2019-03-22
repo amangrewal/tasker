@@ -6,9 +6,17 @@
 (ql:quickload "cl-dbi")
 (ql:quickload "cl-ppcre")
 ;(ql:quickload "local-time")
-;(ql:quickload "usocket")
 
 (defvar *db*)
+(defvar *ififo* "/tmp/tasker/tasks-input"
+  "The name of the fifo that tasks.lisp will read commands from.")
+(defvar *ofifo* "/tmp/tasker/tasks-output"
+  "The name of the fifo that tasks.lisp will write output to.")
+(defvar *ififo-mode* #O622
+  "The permissions for ififo. tasks.lisp must be able to read and write to it.")
+(defvar *ofifo-mode* #O644
+  "The permissions for ofifo. tasks.lisp must be able to write to it. It must
+   be readable by someone.")
 
 ;;;;Clear umask in order to mkfifo with appropriate permissions
 #+sbcl (sb-posix:umask #O000)

@@ -8,6 +8,7 @@ Todo:
 -Add support for different file permissions
 -Add support for more common lisp implementations
 -Add shell tab completion
+-Add support for time
 
 
 How to use:
@@ -27,7 +28,7 @@ Any of the commands below can be shortened, if it's unambiguous which command
 you want.
 Be careful not to forget an argument.
 	`tasker.py modify-task --rowid 1 --due-date --project` will set the
-due date to "project".
+due date to "--project".
 
 
 API:
@@ -47,3 +48,15 @@ tasker.py quit
 	Close tasks.lisp.
 tasker.py exit
 	Synonym for quit.
+
+
+Misc:
+Why so many text fields?
+	It's to improve filtering (when that gets implemented), and it's just
+what seemed natural to me. 'project' is for grouping multiple tasks. 'tags' is
+just a list of extra tags. 'plist' is a list of tags that take arguments or
+have other values associated with them (e.g., location: home or location:
+work). 'notes' is for more miscellaneous info that isn't meant to be searched.
+Why another to-do list program?
+	I wanted something that also kept tracked of completed tasks. I did not
+find any solution that could do that out-of-the-box.
