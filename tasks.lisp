@@ -20,7 +20,7 @@
 
 ;;;;Clear umask in order to mkfifo with appropriate permissions
 #+sbcl (sb-posix:umask #O000)
- #-(or sbcl) (error "Not implemented yet")
+#-(or sbcl) (error "Not implemented yet")
 
 (defun mkfifo (name mode)
   #+sbcl (sb-posix:mkfifo name mode)
@@ -238,24 +238,23 @@
 
 (defun startup ()
   (parse-args)
-  (let ((output "/tmp/tasker/tasks-output"))
-    (mkfifo output #O644)
-    (unwind-protect
-      (with-open-fifo-for-read (input "/tmp/tasker/tasks-input" #O622)
-        (setf *db* (cl-dbi:connect :sqlite3 :database-name "tasks.db"))
-        (cl-dbi:execute (cl-dbi:prepare *db* "CREATE TABLE IF NOT EXISTS tasks(
-                                             'CREATION-TIME' TEXT,
-                                             'DUE-DATE' TEXT,
-                                             'LAST-UPDATED' TEXT,
-                                             PROJECT TEXT,
-                                             TAGS TEXT,
-                                             PLIST TEXT,
-                                             NOTES TEXT,
-                                             COMPLETED INTEGER)"))
-        (catch 'quit
-                 (loop for line = (read-line input)
-                       do (dispatch output line)))
-        (write-to-fifo output "Exiting"))
-      (delete-file output))))
+  (mkfifo *ofifo* *ofifo-mode*)
+  (unwind-protect
+    (with-open-fifo-for-read (input *ififo* *ififo-mode*)
+      (setf *db* (cl-dbi:connect :sqlite3 :database-name "tasks.db"))
+      (cl-dbi:execute (cl-dbi:prepare *db* "CREATE TABLE IF NOT EXISTS tasks(
+                                            'CREATION-TIME' TEXT,
+                                            'DUE-DATE' TEXT,
+                                            'LAST-UPDATED' TEXT,
+                                            PROJECT TEXT,
+                                            TAGS TEXT,
+                                            PLIST TEXT,
+                                            NOTES TEXT,
+                                            COMPLETED INTEGER)"))
+      (catch 'quit
+             (loop for line = (read-line input)
+                   do (dispatch *ofifo* line)))
+      (write-to-fifo *ofifo* "Exiting"))
+      (delete-file *ofifo*)))
 
 (startup)
