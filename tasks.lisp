@@ -230,10 +230,10 @@
 
 (defun startup ()
   (parse-args)
-  (let ((output "/tmp/tasks-output"))
+  (let ((output "/tmp/tasker/tasks-output"))
     (mkfifo output #O644)
     (unwind-protect
-      (with-open-fifo-for-read (input "/tmp/tasks-input" #O622)
+      (with-open-fifo-for-read (input "/tmp/tasker/tasks-input" #O622)
         (setf *db* (cl-dbi:connect :sqlite3 :database-name "tasks.db"))
         (cl-dbi:execute (cl-dbi:prepare *db* "CREATE TABLE IF NOT EXISTS tasks(
                                              'CREATION-TIME' TEXT,
