@@ -12,3 +12,8 @@ if os.path.exists("/tmp/tasker/tasks-input"):
         if output[-1] == "\n":
             end = ""
         print(output, end=end)
+else:
+    print("tasks.lisp is not running.")
+    print("If you're sure it's running, check that the command-line arguments/configs match.")
+
+# vim: set ft=python :

@@ -1,6 +1,6 @@
-;;https://leanpub.com/lovinglisp/read#leanpub-auto-accessing-relational-databases
 ;;TODO: Figure out packaging
-(load "/home/tasker/quicklisp/setup.lisp")
+(require 'asdf)
+(require 'quicklisp)
 (ql:quickload "unix-opts")
 (ql:quickload "split-sequence")
 (ql:quickload "cl-dbi")
@@ -23,6 +23,7 @@
 #-(or sbcl) (error "Not implemented yet")
 
 (defun mkfifo (name mode)
+  (ensure-directories-exist name)
   #+sbcl (sb-posix:mkfifo name mode)
   #-(or sbcl) (error "Not implemented yet"))
 
@@ -202,13 +203,12 @@
   (error "Not implemented yet."))
 
 ;;;; With proper packaging, I can use quit and exit
-(defun quitl (fifo args)
+(defun quit! (fifo args)
   (declare (ignore fifo args))
   (throw 'quit nil))
 
-(defun exitl (fifo args)
-  (declare (ignore fifo args))
-  (throw 'quit nil))
+(defun exit! (fifo args)
+  (quit! fifo args))
 
 (defun does-not-exist (fifo line)
   (write-to-fifo fifo "Unknown command ~A" line))
@@ -221,8 +221,8 @@
     "modify-task" 
     "complete-task" 
     ;"flush-tasks" 
-    "quitl"
-    "exitl"))
+    "quit!"
+    "exit!"))
 
 (defun parse-args ())
 
@@ -258,3 +258,5 @@
       (delete-file *ofifo*)))
 
 (startup)
+
+;;;; vim: set ft=lisp :
